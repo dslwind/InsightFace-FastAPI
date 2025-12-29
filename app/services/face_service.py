@@ -8,10 +8,13 @@ from insightface.app import FaceAnalysis
 from numpy.linalg import norm
 from typing import Optional, Dict, Any, Union
 from app.config import settings
+import logging
 
+logger = logging.getLogger(__name__)
 
 
 class FaceService:
+
     def __init__(self):
         # using model pack from settings
         # providers defaults to CPU or CUDA based on settings
@@ -51,13 +54,14 @@ class FaceService:
                         nparr = np.frombuffer(decoded, np.uint8)
                         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                     except Exception as e:
-                        print(f"Base64 decode error: {e}")
+                        logger.error(f"Base64 decode error: {e}")
                         return None
                         
                 # Removed direct file path support for security/deployment context
         except Exception as e:
-            print(f"Error loading image: {e}")
+            logger.error(f"Error loading image: {e}")
             return None
+
             
         return img
 
@@ -189,6 +193,7 @@ class FaceService:
                 strategy=best_face_strategy
             )
             response["face_counts"]["image1"] = len(faces1) if faces1 else 0
+            logger.debug(f"Image 1: Found {response['face_counts']['image1']} faces")
 
             # Get faces for Image 2
             faces2 = self.get_faces(
@@ -199,16 +204,20 @@ class FaceService:
                 strategy=best_face_strategy
             )
             response["face_counts"]["image2"] = len(faces2) if faces2 else 0
+            logger.debug(f"Image 2: Found {response['face_counts']['image2']} faces")
             
             if not faces1:
                 response["status"] = "error"
                 response["error_message"] = "No face detected in image1"
+                logger.warning("No face detected in image1")
                 return response
             
             if not faces2:
                 response["status"] = "error"
                 response["error_message"] = "No face detected in image2"
+                logger.warning("No face detected in image2")
                 return response
+
 
             # Prepare lists for comparison
             # If not comparing all faces, we only take the top 1 face (already sorted by strategy)
@@ -231,10 +240,14 @@ class FaceService:
             # Finalize result
             response["similarity_score"] = float(max_sim)
             response["is_same_person"] = bool(max_sim > threshold)
+            
+            logger.info(f"Comparison complete. Similarity: {response['similarity_score']:.4f}, Match: {response['is_same_person']}")
 
         except Exception as e:
             response["status"] = "error"
             response["error_message"] = str(e)
+            logger.error(f"Error comparing faces: {e}")
+
         
         # Calculate time
         end_time = time.time()

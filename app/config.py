@@ -16,7 +16,15 @@ class Settings(BaseSettings):
     DEFAULT_INPUT_FORMAT: str = "auto"
     DEFAULT_COMPARE_ALL_FACES: bool = False
 
+    # Logging Configuration
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "logs"
+    LOG_FILENAME: str = "insightface_api.log"
+    LOG_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    LOG_BACKUP_COUNT: int = 5
+
     class Config:
+
         env_file = ".env"
 
 settings = Settings()
