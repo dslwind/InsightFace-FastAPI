@@ -25,7 +25,7 @@ class FaceService:
                 nparr = np.frombuffer(image_source, np.uint8)
                 img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 
-            # 2. String (URL, Path, Base64)
+            # 2. String (URL, Base64)
             elif isinstance(image_source, str):
                 # URL
                 if image_source.startswith(('http://', 'https://')):
@@ -34,10 +34,6 @@ class FaceService:
                     nparr = np.frombuffer(resp.content, np.uint8)
                     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 
-                # File Path
-                elif os.path.isfile(image_source):
-                    img = cv2.imread(image_source)
-                    
                 # Base64
                 else:
                     # check for header like data:image/jpeg;base64,
@@ -46,9 +42,15 @@ class FaceService:
                     else:
                         encoded = image_source
                     
-                    decoded = base64.b64decode(encoded)
-                    nparr = np.frombuffer(decoded, np.uint8)
-                    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    try:
+                        decoded = base64.b64decode(encoded)
+                        nparr = np.frombuffer(decoded, np.uint8)
+                        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    except Exception as e:
+                        print(f"Base64 decode error: {e}")
+                        return None
+                        
+                # Removed direct file path support for security/deployment context
         except Exception as e:
             print(f"Error loading image: {e}")
             return None
@@ -56,7 +58,7 @@ class FaceService:
         return img
 
 
-    def get_faces(self, image_input: Union[bytes, str]) -> Optional[Any]:
+    def get_faces(self, image_input: Union[bytes, str], min_face_size: int = 0, detection_threshold: float = 0.0, limit_faces: int = 0, strategy: str = "largest") -> Optional[Any]:
         # Returns list of face objects
         img = self._load_image(image_input)
         if img is None:
@@ -65,12 +67,47 @@ class FaceService:
         faces = self.app.get(img)
         if not faces:
             return None
+            
+        # Filter by min_face_size
+        if min_face_size > 0:
+            faces = [f for f in faces if (f.bbox[2]-f.bbox[0]) >= min_face_size and (f.bbox[3]-f.bbox[1]) >= min_face_size]
+            
+        # Filter by detection_threshold
+        if detection_threshold > 0:
+            # assuming det_score exists
+            faces = [f for f in faces if getattr(f, 'det_score', 0) >= detection_threshold]
+            
+        if not faces:
+            return None
+
+        # Sort according to strategy
+        if strategy == "center":
+            h, w = img.shape[:2]
+            cx, cy = w / 2, h / 2
+            def dist_to_center(face):
+                box = face.bbox
+                face_cx = (box[0] + box[2]) / 2
+                face_cy = (box[1] + box[3]) / 2
+                return (face_cx - cx)**2 + (face_cy - cy)**2
+            faces = sorted(faces, key=dist_to_center)
+        elif strategy == "confidence" or strategy == "score":
+            faces = sorted(faces, key=lambda x: getattr(x, 'det_score', 0), reverse=True)
+        else:
+            # defaults to area/largest
+            faces = sorted(faces, key=lambda x: (x.bbox[2]-x.bbox[0]) * (x.bbox[3]-x.bbox[1]), reverse=True)
+
+        # Apply limit
+        if limit_faces > 0:
+            faces = faces[:limit_faces]
+
         return faces
 
     def get_embedding(self, image_input: Union[bytes, str], strategy: str = "largest") -> Optional[np.ndarray]:
-        faces = self.get_faces(image_input)
+        # Legacy method support, uses default filters
+        faces = self.get_faces(image_input, strategy=strategy)
         if not faces:
             return None
+
 
         
         # Strategies
@@ -101,26 +138,83 @@ class FaceService:
         return faces[0].normed_embedding
 
 
-    def compare_faces(self, img1_input: Union[bytes, str], img2_input: Union[bytes, str], 
-                      threshold: float = 0.5, strategy: str = "largest", compare_all_faces: bool = False) -> Dict[str, Any]:
+
+    def compare_faces(self, 
+                      image1: str, 
+                      image2: str,
+                      threshold: float = 0.3,
+                      limit_faces: int = 0,
+                      min_face_size: int = 0,
+                      return_face_data: bool = False,
+                      return_landmarks: bool = False,
+                      detection_threshold: float = 0.6,
+                      best_face_strategy: str = "center",
+                      input_format: str = "auto",
+                      compare_all_faces: bool = False
+                      ) -> Dict[str, Any]:
         
-        if compare_all_faces:
-            # Get ALL faces from both images
-            faces1 = self.get_faces(img1_input)
+        import time
+        start_time = time.time()
+        
+        # Prepare response structure
+        response = {
+            "is_same_person": False,
+            "similarity_score": 0.0,
+            "status": "success",
+            "error_message": None,
+            "face_counts": {"image1": 0, "image2": 0},
+            "processing_time_ms": 0.0,
+            "parameters": {
+                "threshold": threshold,
+                "detection_threshold": detection_threshold,
+                "limit_faces": limit_faces,
+                "min_face_size": min_face_size,
+                "best_face_strategy": best_face_strategy,
+                "input_format": input_format
+            }
+        }
+        
+        try:
+            # Get faces for Image 1
+            faces1 = self.get_faces(
+                image1, 
+                min_face_size=min_face_size, 
+                detection_threshold=detection_threshold, 
+                limit_faces=limit_faces, 
+                strategy=best_face_strategy
+            )
+            response["face_counts"]["image1"] = len(faces1) if faces1 else 0
+
+            # Get faces for Image 2
+            faces2 = self.get_faces(
+                image2, 
+                min_face_size=min_face_size, 
+                detection_threshold=detection_threshold, 
+                limit_faces=limit_faces, 
+                strategy=best_face_strategy
+            )
+            response["face_counts"]["image2"] = len(faces2) if faces2 else 0
+            
             if not faces1:
-                 return {"error": "No face detected in the first image", "similarity": 0.0, "match": False}
+                response["status"] = "error"
+                response["error_message"] = "No face detected in image1"
+                return response
             
-            faces2 = self.get_faces(img2_input)
             if not faces2:
-                 return {"error": "No face detected in the second image", "similarity": 0.0, "match": False}
-                 
-            # Compare every face in image 1 with every face in image 2
+                response["status"] = "error"
+                response["error_message"] = "No face detected in image2"
+                return response
+
+            # Prepare lists for comparison
+            # If not comparing all faces, we only take the top 1 face (already sorted by strategy)
+            list1 = faces1 if compare_all_faces else [faces1[0]]
+            list2 = faces2 if compare_all_faces else [faces2[0]]
+
             max_sim = -1.0
-            is_match = False
             
-            for f1 in faces1:
+            for f1 in list1:
                 emb1 = f1.normed_embedding
-                for f2 in faces2:
+                for f2 in list2:
                     emb2 = f2.normed_embedding
                     
                     sim = np.dot(emb1, emb2)
@@ -128,44 +222,21 @@ class FaceService:
                     
                     if sim > max_sim:
                         max_sim = sim
-                    
-                    if sim > threshold:
-                        is_match = True
-                        # If we just need to know if there is ANY match, we could break early.
-                        # However, usually we might want to return the best similarity found.
-                        # If optimization is needed, we could break here if we don't care about exact max_sim if > threshold.
-                        # For now, let's find the absolute max similarity for better reporting.
             
-            return {
-                "similarity": float(max_sim),
-                "match": is_match
-            }
+            # Finalize result
+            response["similarity_score"] = float(max_sim)
+            response["is_same_person"] = bool(max_sim > threshold)
 
-        else:
-            # Original single-face comparison strategy
-            emb1 = self.get_embedding(img1_input, strategy=strategy)
+        except Exception as e:
+            response["status"] = "error"
+            response["error_message"] = str(e)
+        
+        # Calculate time
+        end_time = time.time()
+        response["processing_time_ms"] = float((end_time - start_time) * 1000)
+        
+        return response
 
-            if emb1 is None:
-                return {"error": "No face detected in the first image", "similarity": 0.0, "match": False}
-                
-            emb2 = self.get_embedding(img2_input, strategy=strategy)
-
-
-            if emb2 is None:
-                return {"error": "No face detected in the second image", "similarity": 0.0, "match": False}
-            
-            # Compute cosine similarity
-            # embeddings are already normed by insightface (normed_embedding), but safe to re-norm or just dot product if guaranteed.
-            # InsightFace's normed_embedding is length 1.
-            
-            sim = np.dot(emb1, emb2) 
-            # Clip similarity to [-1, 1] range to handle float precision
-            sim = np.clip(sim, -1.0, 1.0)
-            
-            return {
-                "similarity": float(sim),
-                "match": bool(sim > threshold)
-            }
 
 # Singleton instance
 face_service = FaceService()

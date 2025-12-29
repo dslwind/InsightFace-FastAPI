@@ -1,6 +1,7 @@
 import requests
 import base64
 import os
+import json
 
 def test_flexible_inputs():
     url = "http://127.0.0.1:8000/face/compare"
@@ -11,44 +12,44 @@ def test_flexible_inputs():
     if not os.path.exists(img1_path):
         print("Images not found")
         return
-
-    # 1. Test Path
-    print("Testing Path input...")
-    data_path = {
-        "image1": img1_path,
-        "image2": img2_path
-    }
-    resp = requests.post(url, data=data_path)
-    print(f"Path Response: {resp.status_code}, {resp.json()}")
-
-    # 2. Test Base64
-    print("Testing Base64 input...")
+        
     with open(img1_path, "rb") as f:
         b64_1 = base64.b64encode(f.read()).decode('utf-8')
     with open(img2_path, "rb") as f:
         b64_2 = base64.b64encode(f.read()).decode('utf-8')
-    
-    # Add prefix for robustness test
-    b64_1_prefix = "data:image/png;base64," + b64_1
 
-    data_b64 = {
-        "image1": b64_1_prefix,
-        "image2": b64_2
-    }
-    resp = requests.post(url, data=data_b64)
-    print(f"Base64 Response: {resp.status_code}, {resp.json()}")
+    # Test Base64 (Raw and Data URI)
+    print("Testing Base64 input...")
     
-    # 3. Test Mixed (File + Base64)
-    print("Testing Mixed input...")
-    # Note: When using 'files', 'data' fields are sent as multipart form fields too.
-    files = {
-        'file1': ('face1.png', open(img1_path, 'rb'), 'image/png')
-    }
-    data_mixed = {
+    # 1. Raw Base64
+    payload_raw = {
+        "image1": b64_1,
         "image2": b64_2
     }
-    resp = requests.post(url, files=files, data=data_mixed)
-    print(f"Mixed Response: {resp.status_code}, {resp.json()}")
+    try:
+        resp = requests.post(url, json=payload_raw)
+        print(f"Raw Base64 Response: {resp.status_code}")
+        if resp.status_code == 200:
+             print("SUCCESS")
+        else:
+             print(f"FAILURE: {resp.text}")
+             
+        # 2. Data URI
+        b64_1_prefix = "data:image/png;base64," + b64_1
+        payload_uri = {
+            "image1": b64_1_prefix,
+            "image2": b64_2 # Mixed raw and uri
+        }
+
+        resp = requests.post(url, json=payload_uri)
+        print(f"Data URI Base64 Response: {resp.status_code}")
+        if resp.status_code == 200:
+             print("SUCCESS")
+        else:
+             print(f"FAILURE: {resp.text}")
+
+    except Exception as e:
+        print(f"Test failed: {e}")
 
 if __name__ == "__main__":
     test_flexible_inputs()
