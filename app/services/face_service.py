@@ -7,14 +7,18 @@ import os
 from insightface.app import FaceAnalysis
 from numpy.linalg import norm
 from typing import Optional, Dict, Any, Union
+from app.config import settings
+
 
 
 class FaceService:
     def __init__(self):
-        # using 'buffalo_l' model pack which includes detection and recognition models
-        # providers defaults to CPU to avoid complexity with CUDA requirements on user machine
-        self.app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
+        # using model pack from settings
+        # providers defaults to CPU or CUDA based on settings
+        providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if settings.ENABLE_CUDA else ['CPUExecutionProvider']
+        self.app = FaceAnalysis(name=settings.INSIGHTFACE_MODEL_NAME, providers=providers)
         self.app.prepare(ctx_id=0, det_size=(640, 640))
+
 
     def _load_image(self, image_source: Union[bytes, str]) -> Optional[np.ndarray]:
         img = None
@@ -142,16 +146,17 @@ class FaceService:
     def compare_faces(self, 
                       image1: str, 
                       image2: str,
-                      threshold: float = 0.3,
-                      limit_faces: int = 0,
-                      min_face_size: int = 0,
-                      return_face_data: bool = False,
-                      return_landmarks: bool = False,
-                      detection_threshold: float = 0.6,
-                      best_face_strategy: str = "center",
-                      input_format: str = "auto",
-                      compare_all_faces: bool = False
+                      threshold: float = settings.DEFAULT_THRESHOLD,
+                      limit_faces: int = settings.DEFAULT_LIMIT_FACES,
+                      min_face_size: int = settings.DEFAULT_MIN_FACE_SIZE,
+                      return_face_data: bool = settings.DEFAULT_RETURN_FACE_DATA,
+                      return_landmarks: bool = settings.DEFAULT_RETURN_LANDMARKS,
+                      detection_threshold: float = settings.DEFAULT_DETECTION_THRESHOLD,
+                      best_face_strategy: str = settings.DEFAULT_BEST_FACE_STRATEGY,
+                      input_format: str = settings.DEFAULT_INPUT_FORMAT,
+                      compare_all_faces: bool = settings.DEFAULT_COMPARE_ALL_FACES
                       ) -> Dict[str, Any]:
+
         
         import time
         start_time = time.time()
