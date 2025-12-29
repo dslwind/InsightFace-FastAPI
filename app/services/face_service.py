@@ -1,8 +1,13 @@
 import cv2
 import numpy as np
+import requests
+import base64
+import os
+
 from insightface.app import FaceAnalysis
 from numpy.linalg import norm
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
+
 
 class FaceService:
     def __init__(self):
@@ -11,13 +16,49 @@ class FaceService:
         self.app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
         self.app.prepare(ctx_id=0, det_size=(640, 640))
 
-    def _process_image(self, img_bytes: bytes) -> Optional[np.ndarray]:
-        nparr = np.frombuffer(img_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    def _load_image(self, image_source: Union[bytes, str]) -> Optional[np.ndarray]:
+        img = None
+        
+        try:
+            # 1. Bytes
+            if isinstance(image_source, bytes):
+                nparr = np.frombuffer(image_source, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                
+            # 2. String (URL, Path, Base64)
+            elif isinstance(image_source, str):
+                # URL
+                if image_source.startswith(('http://', 'https://')):
+                    resp = requests.get(image_source, timeout=10)
+                    resp.raise_for_status()
+                    nparr = np.frombuffer(resp.content, np.uint8)
+                    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                
+                # File Path
+                elif os.path.isfile(image_source):
+                    img = cv2.imread(image_source)
+                    
+                # Base64
+                else:
+                    # check for header like data:image/jpeg;base64,
+                    if ',' in image_source:
+                        _, encoded = image_source.split(',', 1)
+                    else:
+                        encoded = image_source
+                    
+                    decoded = base64.b64decode(encoded)
+                    nparr = np.frombuffer(decoded, np.uint8)
+                    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except Exception as e:
+            print(f"Error loading image: {e}")
+            return None
+            
         return img
 
-    def get_embedding(self, img_bytes: bytes) -> Optional[np.ndarray]:
-        img = self._process_image(img_bytes)
+
+    def get_embedding(self, image_input: Union[bytes, str]) -> Optional[np.ndarray]:
+        img = self._load_image(image_input)
+
         if img is None:
             return None
             
@@ -29,12 +70,14 @@ class FaceService:
         faces = sorted(faces, key=lambda x: (x.bbox[2]-x.bbox[0]) * (x.bbox[3]-x.bbox[1]), reverse=True)
         return faces[0].normed_embedding
 
-    def compare_faces(self, img1_bytes: bytes, img2_bytes: bytes, threshold: float = 0.5) -> Dict[str, Any]:
-        emb1 = self.get_embedding(img1_bytes)
+    def compare_faces(self, img1_input: Union[bytes, str], img2_input: Union[bytes, str], threshold: float = 0.5) -> Dict[str, Any]:
+        emb1 = self.get_embedding(img1_input)
+
         if emb1 is None:
             return {"error": "No face detected in the first image", "similarity": 0.0, "match": False}
             
-        emb2 = self.get_embedding(img2_bytes)
+        emb2 = self.get_embedding(img2_input)
+
         if emb2 is None:
             return {"error": "No face detected in the second image", "similarity": 0.0, "match": False}
         
