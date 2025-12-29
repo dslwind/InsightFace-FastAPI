@@ -11,7 +11,8 @@ async def compare_faces(
     image1: Optional[str] = Form(None),
     file2: Optional[UploadFile] = File(None),
     image2: Optional[str] = Form(None),
-    strategy: str = Form("largest", description="Face selection strategy: 'largest', 'center', 'score'")
+    strategy: str = Form("largest", description="Face selection strategy: 'largest', 'center', 'score'"),
+    compare_all_faces: bool = Form(False, description="If True, compare all faces in image1 with all faces in image2")
 ):
     # Basic validation helper
     def validate_file(f: UploadFile):
@@ -45,7 +46,7 @@ async def compare_faces(
     
     try:
         # result is a dict with similarity, match, and optional error
-        result = face_service.compare_faces(input1, input2, strategy=strategy)
+        result = face_service.compare_faces(input1, input2, strategy=strategy, compare_all_faces=compare_all_faces)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

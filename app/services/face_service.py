@@ -56,15 +56,22 @@ class FaceService:
         return img
 
 
-    def get_embedding(self, image_input: Union[bytes, str], strategy: str = "largest") -> Optional[np.ndarray]:
+    def get_faces(self, image_input: Union[bytes, str]) -> Optional[Any]:
+        # Returns list of face objects
         img = self._load_image(image_input)
-
         if img is None:
             return None
-            
+        
         faces = self.app.get(img)
         if not faces:
             return None
+        return faces
+
+    def get_embedding(self, image_input: Union[bytes, str], strategy: str = "largest") -> Optional[np.ndarray]:
+        faces = self.get_faces(image_input)
+        if not faces:
+            return None
+
         
         # Strategies
         if strategy == "center":
@@ -94,30 +101,71 @@ class FaceService:
         return faces[0].normed_embedding
 
 
-    def compare_faces(self, img1_input: Union[bytes, str], img2_input: Union[bytes, str], threshold: float = 0.5, strategy: str = "largest") -> Dict[str, Any]:
-        emb1 = self.get_embedding(img1_input, strategy=strategy)
-
-        if emb1 is None:
-            return {"error": "No face detected in the first image", "similarity": 0.0, "match": False}
+    def compare_faces(self, img1_input: Union[bytes, str], img2_input: Union[bytes, str], 
+                      threshold: float = 0.5, strategy: str = "largest", compare_all_faces: bool = False) -> Dict[str, Any]:
+        
+        if compare_all_faces:
+            # Get ALL faces from both images
+            faces1 = self.get_faces(img1_input)
+            if not faces1:
+                 return {"error": "No face detected in the first image", "similarity": 0.0, "match": False}
             
-        emb2 = self.get_embedding(img2_input, strategy=strategy)
+            faces2 = self.get_faces(img2_input)
+            if not faces2:
+                 return {"error": "No face detected in the second image", "similarity": 0.0, "match": False}
+                 
+            # Compare every face in image 1 with every face in image 2
+            max_sim = -1.0
+            is_match = False
+            
+            for f1 in faces1:
+                emb1 = f1.normed_embedding
+                for f2 in faces2:
+                    emb2 = f2.normed_embedding
+                    
+                    sim = np.dot(emb1, emb2)
+                    sim = np.clip(sim, -1.0, 1.0)
+                    
+                    if sim > max_sim:
+                        max_sim = sim
+                    
+                    if sim > threshold:
+                        is_match = True
+                        # If we just need to know if there is ANY match, we could break early.
+                        # However, usually we might want to return the best similarity found.
+                        # If optimization is needed, we could break here if we don't care about exact max_sim if > threshold.
+                        # For now, let's find the absolute max similarity for better reporting.
+            
+            return {
+                "similarity": float(max_sim),
+                "match": is_match
+            }
+
+        else:
+            # Original single-face comparison strategy
+            emb1 = self.get_embedding(img1_input, strategy=strategy)
+
+            if emb1 is None:
+                return {"error": "No face detected in the first image", "similarity": 0.0, "match": False}
+                
+            emb2 = self.get_embedding(img2_input, strategy=strategy)
 
 
-        if emb2 is None:
-            return {"error": "No face detected in the second image", "similarity": 0.0, "match": False}
-        
-        # Compute cosine similarity
-        # embeddings are already normed by insightface (normed_embedding), but safe to re-norm or just dot product if guaranteed.
-        # InsightFace's normed_embedding is length 1.
-        
-        sim = np.dot(emb1, emb2) 
-        # Clip similarity to [-1, 1] range to handle float precision
-        sim = np.clip(sim, -1.0, 1.0)
-        
-        return {
-            "similarity": float(sim),
-            "match": bool(sim > threshold)
-        }
+            if emb2 is None:
+                return {"error": "No face detected in the second image", "similarity": 0.0, "match": False}
+            
+            # Compute cosine similarity
+            # embeddings are already normed by insightface (normed_embedding), but safe to re-norm or just dot product if guaranteed.
+            # InsightFace's normed_embedding is length 1.
+            
+            sim = np.dot(emb1, emb2) 
+            # Clip similarity to [-1, 1] range to handle float precision
+            sim = np.clip(sim, -1.0, 1.0)
+            
+            return {
+                "similarity": float(sim),
+                "match": bool(sim > threshold)
+            }
 
 # Singleton instance
 face_service = FaceService()
