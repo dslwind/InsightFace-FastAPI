@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+insightface
+onnxruntime-gpu
+numpy<2
+python-multipart
+opencv-python<4.12
+pillow
+requests
