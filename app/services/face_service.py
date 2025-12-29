@@ -56,7 +56,7 @@ class FaceService:
         return img
 
 
-    def get_embedding(self, image_input: Union[bytes, str]) -> Optional[np.ndarray]:
+    def get_embedding(self, image_input: Union[bytes, str], strategy: str = "largest") -> Optional[np.ndarray]:
         img = self._load_image(image_input)
 
         if img is None:
@@ -66,17 +66,42 @@ class FaceService:
         if not faces:
             return None
         
-        # Sort faces by area (width * height) descending and pick the largest
-        faces = sorted(faces, key=lambda x: (x.bbox[2]-x.bbox[0]) * (x.bbox[3]-x.bbox[1]), reverse=True)
+        # Strategies
+        if strategy == "center":
+            # Select face closest to image center
+            h, w = img.shape[:2]
+            cx, cy = w / 2, h / 2
+            
+            def dist_to_center(face):
+                # face.bbox is [x1, y1, x2, y2]
+                box = face.bbox
+                face_cx = (box[0] + box[2]) / 2
+                face_cy = (box[1] + box[3]) / 2
+                return (face_cx - cx)**2 + (face_cy - cy)**2
+
+            faces = sorted(faces, key=dist_to_center) # Ascending order (smallest distance)
+
+        elif strategy == "score":
+            # Select face with highest detection score (confidence)
+            # Assuming 'det_score' exists on face object, or fallback if property name differs
+            # InsightFace typical attribute is 'det_score'
+            faces = sorted(faces, key=lambda x: getattr(x, 'det_score', 0), reverse=True)
+            
+        else:
+            # Default: largest area
+            faces = sorted(faces, key=lambda x: (x.bbox[2]-x.bbox[0]) * (x.bbox[3]-x.bbox[1]), reverse=True)
+
         return faces[0].normed_embedding
 
-    def compare_faces(self, img1_input: Union[bytes, str], img2_input: Union[bytes, str], threshold: float = 0.5) -> Dict[str, Any]:
-        emb1 = self.get_embedding(img1_input)
+
+    def compare_faces(self, img1_input: Union[bytes, str], img2_input: Union[bytes, str], threshold: float = 0.5, strategy: str = "largest") -> Dict[str, Any]:
+        emb1 = self.get_embedding(img1_input, strategy=strategy)
 
         if emb1 is None:
             return {"error": "No face detected in the first image", "similarity": 0.0, "match": False}
             
-        emb2 = self.get_embedding(img2_input)
+        emb2 = self.get_embedding(img2_input, strategy=strategy)
+
 
         if emb2 is None:
             return {"error": "No face detected in the second image", "similarity": 0.0, "match": False}
