@@ -204,64 +204,62 @@ class FaceService:
                 response["status"] = "error"
                 response["error_message"] = "No face detected in image2"
                 logger.warning("No face detected in image2")
-                return response
+            else:
+                # 2. Load Image 1
+                img1 = self._load_image(image1)
+                if img1 is None:
+                    response["status"] = "error"
+                    response["error_message"] = "Could not load image1"
+                else:
+                    # 3. Rotation Loop for Image 1
+                    # max 4 trials: 0, 90, 180, 270 degrees
+                    max_trials = 4 if enable_rotation else 1
+                    current_img1 = img1
+                    
+                    for trial in range(max_trials):
+                        if trial > 0:
+                            logger.info(f"Retrying with 90 degree counter-clockwise rotation (Trial {trial})")
+                            current_img1 = cv2.rotate(current_img1, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                        
+                        faces1 = self.get_faces(
+                            current_img1, 
+                            min_face_size=min_face_size, 
+                            detection_threshold=detection_threshold, 
+                            limit_faces=limit_faces, 
+                            strategy=best_face_strategy
+                        )
+                        
+                        num_faces1 = len(faces1) if faces1 else 0
+                        response["face_counts"]["image1"] = num_faces1
+                        
+                        if not faces1:
+                            logger.debug(f"Trial {trial}: No face detected in image1")
+                            continue
 
-            # 2. Load Image 1
-            img1 = self._load_image(image1)
-            if img1 is None:
-                response["status"] = "error"
-                response["error_message"] = "Could not load image1"
-                return response
+                        # Prepare lists for comparison
+                        list1 = faces1 if compare_all_faces else [faces1[0]]
+                        list2 = faces2 if compare_all_faces else [faces2[0]]
 
-            # 3. Rotation Loop for Image 1
-            # max 4 trials: 0, 90, 180, 270 degrees
-            max_trials = 4 if enable_rotation else 1
-            current_img1 = img1
-            
-            for trial in range(max_trials):
-                if trial > 0:
-                    logger.info(f"Retrying with 90 degree counter-clockwise rotation (Trial {trial})")
-                    current_img1 = cv2.rotate(current_img1, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                
-                faces1 = self.get_faces(
-                    current_img1, 
-                    min_face_size=min_face_size, 
-                    detection_threshold=detection_threshold, 
-                    limit_faces=limit_faces, 
-                    strategy=best_face_strategy
-                )
-                
-                num_faces1 = len(faces1) if faces1 else 0
-                response["face_counts"]["image1"] = num_faces1
-                
-                if not faces1:
-                    logger.debug(f"Trial {trial}: No face detected in image1")
-                    continue
-
-                # Prepare lists for comparison
-                list1 = faces1 if compare_all_faces else [faces1[0]]
-                list2 = faces2 if compare_all_faces else [faces2[0]]
-
-                max_sim = -1.0
-                for f1 in list1:
-                    emb1 = f1.normed_embedding
-                    for f2 in list2:
-                        emb2 = f2.normed_embedding
-                        sim = np.dot(emb1, emb2)
-                        sim = np.clip(sim, -1.0, 1.0)
-                        if sim > max_sim:
-                            max_sim = sim
-                
-                response["similarity_score"] = float(max_sim)
-                response["is_same_person"] = bool(max_sim > threshold)
-                
-                if response["is_same_person"]:
-                    logger.info(f"Match found at rotation trial {trial}. Similarity: {max_sim:.4f}")
-                    break
-            
-            if not response["is_same_person"] and response["face_counts"]["image1"] == 0:
-                response["status"] = "error"
-                response["error_message"] = "No face detected in image1 (tried rotations)" if enable_rotation else "No face detected in image1"
+                        max_sim = -1.0
+                        for f1 in list1:
+                            emb1 = f1.normed_embedding
+                            for f2 in list2:
+                                emb2 = f2.normed_embedding
+                                sim = np.dot(emb1, emb2)
+                                sim = np.clip(sim, -1.0, 1.0)
+                                if sim > max_sim:
+                                    max_sim = sim
+                        
+                        response["similarity_score"] = float(max_sim)
+                        response["is_same_person"] = bool(max_sim > threshold)
+                        
+                        if response["is_same_person"]:
+                            logger.info(f"Match found at rotation trial {trial}. Similarity: {max_sim:.4f}")
+                            break
+                    
+                    if not response["is_same_person"] and response["face_counts"]["image1"] == 0:
+                        response["status"] = "error"
+                        response["error_message"] = "No face detected in image1 (tried rotations)" if enable_rotation else "No face detected in image1"
 
         except Exception as e:
             response["status"] = "error"
