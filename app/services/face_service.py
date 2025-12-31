@@ -23,7 +23,10 @@ class FaceService:
         self.app.prepare(ctx_id=0, det_size=(640, 640))
 
 
-    def _load_image(self, image_source: Union[bytes, str]) -> Optional[np.ndarray]:
+    def _load_image(self, image_source: Union[bytes, str, np.ndarray]) -> Optional[np.ndarray]:
+        if isinstance(image_source, np.ndarray):
+            return image_source
+            
         img = None
         
         try:
@@ -66,7 +69,7 @@ class FaceService:
         return img
 
 
-    def get_faces(self, image_input: Union[bytes, str], min_face_size: int = 0, detection_threshold: float = 0.0, limit_faces: int = 0, strategy: str = "largest") -> Optional[Any]:
+    def get_faces(self, image_input: Union[bytes, str, np.ndarray], min_face_size: int = 0, detection_threshold: float = 0.0, limit_faces: int = 0, strategy: str = "largest") -> Optional[Any]:
         # Returns list of face objects
         img = self._load_image(image_input)
         if img is None:
@@ -158,7 +161,8 @@ class FaceService:
                       detection_threshold: float = settings.DEFAULT_DETECTION_THRESHOLD,
                       best_face_strategy: str = settings.DEFAULT_BEST_FACE_STRATEGY,
                       input_format: str = settings.DEFAULT_INPUT_FORMAT,
-                      compare_all_faces: bool = settings.DEFAULT_COMPARE_ALL_FACES
+                      compare_all_faces: bool = settings.DEFAULT_COMPARE_ALL_FACES,
+                      enable_rotation: bool = settings.DEFAULT_ENABLE_ROTATION
                       ) -> Dict[str, Any]:
 
         
@@ -168,7 +172,7 @@ class FaceService:
         # Prepare response structure
         response = {
             "is_same_person": False,
-            "similarity_score": 0.0,
+            "similarity_score": -1.0,
             "status": "success",
             "error_message": None,
             "face_counts": {"image1": 0, "image2": 0},
@@ -179,23 +183,13 @@ class FaceService:
                 "limit_faces": limit_faces,
                 "min_face_size": min_face_size,
                 "best_face_strategy": best_face_strategy,
-                "input_format": input_format
+                "input_format": input_format,
+                "enable_rotation": enable_rotation
             }
         }
         
         try:
-            # Get faces for Image 1
-            faces1 = self.get_faces(
-                image1, 
-                min_face_size=min_face_size, 
-                detection_threshold=detection_threshold, 
-                limit_faces=limit_faces, 
-                strategy=best_face_strategy
-            )
-            response["face_counts"]["image1"] = len(faces1) if faces1 else 0
-            logger.debug(f"Image 1: Found {response['face_counts']['image1']} faces")
-
-            # Get faces for Image 2
+            # 1. Load Image 2 and detect faces (once)
             faces2 = self.get_faces(
                 image2, 
                 min_face_size=min_face_size, 
@@ -206,42 +200,68 @@ class FaceService:
             response["face_counts"]["image2"] = len(faces2) if faces2 else 0
             logger.debug(f"Image 2: Found {response['face_counts']['image2']} faces")
             
-            if not faces1:
-                response["status"] = "error"
-                response["error_message"] = "No face detected in image1"
-                logger.warning("No face detected in image1")
-                return response
-            
             if not faces2:
                 response["status"] = "error"
                 response["error_message"] = "No face detected in image2"
                 logger.warning("No face detected in image2")
                 return response
 
+            # 2. Load Image 1
+            img1 = self._load_image(image1)
+            if img1 is None:
+                response["status"] = "error"
+                response["error_message"] = "Could not load image1"
+                return response
 
-            # Prepare lists for comparison
-            # If not comparing all faces, we only take the top 1 face (already sorted by strategy)
-            list1 = faces1 if compare_all_faces else [faces1[0]]
-            list2 = faces2 if compare_all_faces else [faces2[0]]
+            # 3. Rotation Loop for Image 1
+            # max 4 trials: 0, 90, 180, 270 degrees
+            max_trials = 4 if enable_rotation else 1
+            current_img1 = img1
+            
+            for trial in range(max_trials):
+                if trial > 0:
+                    logger.info(f"Retrying with 90 degree counter-clockwise rotation (Trial {trial})")
+                    current_img1 = cv2.rotate(current_img1, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                
+                faces1 = self.get_faces(
+                    current_img1, 
+                    min_face_size=min_face_size, 
+                    detection_threshold=detection_threshold, 
+                    limit_faces=limit_faces, 
+                    strategy=best_face_strategy
+                )
+                
+                num_faces1 = len(faces1) if faces1 else 0
+                response["face_counts"]["image1"] = num_faces1
+                
+                if not faces1:
+                    logger.debug(f"Trial {trial}: No face detected in image1")
+                    continue
 
-            max_sim = -1.0
+                # Prepare lists for comparison
+                list1 = faces1 if compare_all_faces else [faces1[0]]
+                list2 = faces2 if compare_all_faces else [faces2[0]]
+
+                max_sim = -1.0
+                for f1 in list1:
+                    emb1 = f1.normed_embedding
+                    for f2 in list2:
+                        emb2 = f2.normed_embedding
+                        sim = np.dot(emb1, emb2)
+                        sim = np.clip(sim, -1.0, 1.0)
+                        if sim > max_sim:
+                            max_sim = sim
+                
+                response["similarity_score"] = float(max_sim)
+                response["is_same_person"] = bool(max_sim > threshold)
+                
+                if response["is_same_person"]:
+                    logger.info(f"Match found at rotation trial {trial}. Similarity: {max_sim:.4f}")
+                    break
             
-            for f1 in list1:
-                emb1 = f1.normed_embedding
-                for f2 in list2:
-                    emb2 = f2.normed_embedding
-                    
-                    sim = np.dot(emb1, emb2)
-                    sim = np.clip(sim, -1.0, 1.0)
-                    
-                    if sim > max_sim:
-                        max_sim = sim
-            
-            # Finalize result
-            response["similarity_score"] = float(max_sim)
-            response["is_same_person"] = bool(max_sim > threshold)
-            
-            logger.info(f"Comparison complete. Similarity: {response['similarity_score']:.4f}, Match: {response['is_same_person']}")
+            if not response["is_same_person"] and response["face_counts"]["image1"] == 0:
+                response["status"] = "error"
+                response["error_message"] = "No face detected in image1 (tried rotations)" if enable_rotation else "No face detected in image1"
 
         except Exception as e:
             response["status"] = "error"

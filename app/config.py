@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     DEFAULT_BEST_FACE_STRATEGY: str = "center"
     DEFAULT_INPUT_FORMAT: str = "auto"
     DEFAULT_COMPARE_ALL_FACES: bool = False
+    DEFAULT_ENABLE_ROTATION: bool = False
 
     # Logging Configuration
     LOG_LEVEL: str = "INFO"

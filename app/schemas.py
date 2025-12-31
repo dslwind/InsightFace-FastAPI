@@ -15,6 +15,7 @@ class FaceCompareRequest(BaseModel):
     best_face_strategy: str = Field(settings.DEFAULT_BEST_FACE_STRATEGY, description="Strategy: 'area', 'center', 'confidence'")
     input_format: str = Field(settings.DEFAULT_INPUT_FORMAT, description="Input format hint")
     compare_all_faces: bool = Field(settings.DEFAULT_COMPARE_ALL_FACES, description="Compare all faces vs all faces")
+    enable_rotation: bool = Field(settings.DEFAULT_ENABLE_ROTATION, description="Enable rotation logic if no match found")
 
 
 class FaceCounts(BaseModel):
@@ -28,6 +29,7 @@ class CompareParameters(BaseModel):
     min_face_size: int
     best_face_strategy: str
     input_format: str
+    enable_rotation: bool
 
 class FaceCompareResponse(BaseModel):
     is_same_person: bool

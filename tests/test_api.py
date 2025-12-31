@@ -7,7 +7,7 @@ def test_compare():
     
     # Ensure images exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    img1_path = os.path.join(base_dir, "image003.jpeg")
+    img1_path = os.path.join(base_dir, "image001.jpeg")
     img2_path = os.path.join(base_dir, "image002.jpeg")
     
     if not os.path.exists(img1_path) or not os.path.exists(img2_path):
@@ -26,7 +26,7 @@ def test_compare():
         
         if response.status_code == 200:
             data = response.json()
-            if "similarity" in data and "match" in data:
+            if "similarity_score" in data and "is_same_person" in data:
                 print("SUCCESS: API returned valid response structure.")
             else:
                 print("FAILURE: Unexpected response structure.")
