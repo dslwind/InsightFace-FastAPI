@@ -1,25 +1,26 @@
 import requests
 import os
+import base64
 
 def test_compare():
     url = "http://127.0.0.1:8000/face/compare"
     
     # Ensure images exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    img1_path = os.path.join(base_dir, "face1.png")
-    img2_path = os.path.join(base_dir, "face2.png")
+    img1_path = os.path.join(base_dir, "image003.jpeg")
+    img2_path = os.path.join(base_dir, "image002.jpeg")
     
     if not os.path.exists(img1_path) or not os.path.exists(img2_path):
-        print("Test images not found. Please ensure face1.png and face2.png are in the directory.")
+        print("Test images not found. Please ensure image001.jpeg and image002.jpeg are in the directory.")
         return
 
-    files = [
-        ('file1', ('face1.png', open(img1_path, 'rb'), 'image/png')),
-        ('file2', ('face2.png', open(img2_path, 'rb'), 'image/png'))
-    ]
+    with open(img1_path, "rb") as f:
+        b64_1 = base64.b64encode(f.read()).decode('utf-8')
+    with open(img2_path, "rb") as f:
+        b64_2 = base64.b64encode(f.read()).decode('utf-8')
     
     try:
-        response = requests.post(url, files=files)
+        response = requests.post(url, json={"image1": b64_1, "image2": b64_2})
         print(f"Status Code: {response.status_code}")
         print(f"Response: {response.json()}")
         
