@@ -1,8 +1,10 @@
 import logging
-import sys
 import os
+import sys
 from logging.handlers import RotatingFileHandler
+
 from app.config import settings
+
 
 def setup_logging():
     """
@@ -10,7 +12,7 @@ def setup_logging():
     - Log to console (StreamHandler)
     - Log to rotating file (RotatingFileHandler) using size-based rotation
     """
-    
+
     # 1. Create Log Directory
     if not os.path.exists(settings.LOG_DIR):
         try:
@@ -20,19 +22,19 @@ def setup_logging():
             return
 
     log_filepath = os.path.join(settings.LOG_DIR, settings.LOG_FILENAME)
-    
+
     # 2. Get Root Logger
     logger = logging.getLogger()
     logger.setLevel(settings.LOG_LEVEL.upper())
-    
+
     # Clean up existing handlers to avoid duplicates on re-init
     if logger.hasHandlers():
         logger.handlers.clear()
 
     # 3. Formatter
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     # 4. Console Handler
@@ -46,11 +48,13 @@ def setup_logging():
             log_filepath,
             maxBytes=settings.LOG_MAX_BYTES,
             backupCount=settings.LOG_BACKUP_COUNT,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     except Exception as e:
         print(f"Failed to set up file logging: {e}")
 
-    logging.info(f"Logging setup complete. Level: {settings.LOG_LEVEL}, File: {log_filepath}")
+    logging.info(
+        f"Logging setup complete. Level: {settings.LOG_LEVEL}, File: {log_filepath}"
+    )

@@ -1,10 +1,11 @@
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     # InsightFace Configuration
     INSIGHTFACE_MODEL_NAME: str = "buffalo_l"
     ENABLE_CUDA: bool = False
-    
+
     # API Default Parameters
     DEFAULT_THRESHOLD: float = 0.3
     DEFAULT_DETECTION_THRESHOLD: float = 0.6
@@ -27,5 +28,6 @@ class Settings(BaseSettings):
     class Config:
 
         env_file = ".env"
+
 
 settings = Settings()
