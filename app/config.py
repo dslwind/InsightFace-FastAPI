@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     LOG_FILENAME: str = "insightface_api.log"
     LOG_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB
     LOG_BACKUP_COUNT: int = 5
+    LOG_ROTATION_TYPE: str = "time"  # "size" or "time"
+    LOG_ROTATION_WHEN: str = "midnight"  # Rotates at midnight
+    LOG_ROTATION_INTERVAL: int = 1
+    LOG_COMPRESS: bool = True
 
     class Config:
 
