@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     LOG_ROTATION_WHEN: str = "midnight"  # Rotates at midnight
     LOG_ROTATION_INTERVAL: int = 1
     LOG_COMPRESS: bool = True
+    
+    # Database Logging Configuration
+    ENABLE_DB_LOGGING: bool = False
+    DB_POSTGRES_URL: str = ""  # e.g., postgresql://user:password@localhost:5432/dbname
+    DB_SQLITE_URL: str = "sqlite:///logs/app_logs.db"
 
     class Config:
 

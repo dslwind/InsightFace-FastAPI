@@ -9,3 +9,5 @@ opencv-python-headless<4.12
 pillow
 requests
 pydantic-settings
+sqlalchemy
+psycopg2-binary

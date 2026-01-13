@@ -86,6 +86,7 @@ def setup_logging():
     except Exception as e:
         print(f"Failed to set up file logging: {e}")
 
+
     logging.info(
         f"Logging setup complete. Level: {settings.LOG_LEVEL}, File: {log_filepath}"
     )
