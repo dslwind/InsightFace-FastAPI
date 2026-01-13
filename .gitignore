@@ -31,3 +31,5 @@ models/
 *.jpeg
 *.jpg
 
+# Tests
+tests/
