@@ -14,6 +14,11 @@ from app.config import settings
 async def lifespan(app: FastAPI):
     # Startup: Setup logging
     setup_logging()
+    
+    # Warmup models
+    from app.services.face_service import face_service
+    face_service.warmup()
+    
     yield
     # Shutdown events if any
 

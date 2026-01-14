@@ -29,6 +29,21 @@ class FaceService:
         )
         self.app.prepare(ctx_id=0, det_size=(640, 640))
 
+    def warmup(self):
+        """
+        Perform a dummy inference to warm up the model.
+        This ensures the first user request doesn't incur initialization latency.
+        """
+        try:
+            logger.info("Starting model warmup...")
+            # Create a black 640x640 dummy image
+            dummy_img = np.zeros((640, 640, 3), dtype=np.uint8)
+            # Run inference
+            self.app.get(dummy_img)
+            logger.info("Model warmup completed.")
+        except Exception as e:
+            logger.warning(f"Model warmup failed: {e}")
+
     def _load_image(
         self, image_source: Union[bytes, str, np.ndarray]
     ) -> Optional[np.ndarray]:
