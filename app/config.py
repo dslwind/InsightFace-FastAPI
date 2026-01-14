@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # Default to current working directory (InsightFace will automatically create "./models" directory)
     INSIGHTFACE_ROOT: str = "."
     ENABLE_CUDA: bool = True
+    ENABLE_TENSORRT: bool = True
 
     # API Default Parameters
     DEFAULT_THRESHOLD: float = 0.3

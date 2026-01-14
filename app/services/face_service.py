@@ -28,15 +28,17 @@ class FaceService:
         if settings.ENABLE_CUDA:
             # Check for TensorRT options or default preference
             # Using TensorRT with caching to optimize startup
-            trt_options = {
-                "trt_engine_cache_enable": True,
-                "trt_engine_cache_path": os.path.join(root_path, "trt_engines"),
-                "trt_fp16_enable": True,
-            }
-            # Create cache directory if it doesn't exist
-            os.makedirs(trt_options["trt_engine_cache_path"], exist_ok=True)
+            if settings.ENABLE_TENSORRT:
+                trt_options = {
+                    "trt_engine_cache_enable": True,
+                    "trt_engine_cache_path": os.path.join(root_path, "trt_engines"),
+                    "trt_fp16_enable": True,
+                }
+                # Create cache directory if it doesn't exist
+                os.makedirs(trt_options["trt_engine_cache_path"], exist_ok=True)
+                
+                providers.append(("TensorrtExecutionProvider", trt_options))
             
-            providers.append(("TensorrtExecutionProvider", trt_options))
             providers.append("CUDAExecutionProvider")
 
         providers.append("CPUExecutionProvider")
