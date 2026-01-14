@@ -36,10 +36,35 @@ class FaceService:
         """
         try:
             logger.info("Starting model warmup...")
+            # 1. Warmup Detection (and general pipeline)
             # Create a black 640x640 dummy image
             dummy_img = np.zeros((640, 640, 3), dtype=np.uint8)
-            # Run inference
             self.app.get(dummy_img)
+
+            # 2. Warmup Recognition (ArcFace) specifically
+            # The standard .get() above won't trigger recognition if no faces are found.
+            # We need to force a pass through the recognition model.
+            if "recognition" in self.app.models:
+                rec_model = self.app.models["recognition"]
+                # Create a dummy input in the shape expected by ArcFace (1, 3, 112, 112)
+                # Note: InsightFace ArcFaceONNX.get(img, face) normally crops the face from the image
+                # But we can look at the internal ONNX session if we want to be raw,
+                # Or just construct a fake 'Face' object and pass uncropped content.
+                # However, calling rec_model.forward(blob) is safer if available.
+                # Inspecting source: rec_model.get(img, face) -> calls model.forward(input_blob)
+                
+                # Let's try running a raw forward pass using a random tensor
+                # Standard input shape for these models is (1, 3, 112, 112)
+                dummy_input = np.random.randn(1, 3, 112, 112).astype(np.float32)
+                
+                # Call internal session directly to be safe and raw
+                if hasattr(rec_model, 'session'):
+                    input_name = rec_model.session.get_inputs()[0].name
+                    rec_model.session.run(None, {input_name: dummy_input})
+                    logger.info("Recognition model warmup completed (Direct ONNX).")
+                else:
+                    logger.warning("Recognition model has no 'session' attribute, skipping specific warmup.")
+
             logger.info("Model warmup completed.")
         except Exception as e:
             logger.warning(f"Model warmup failed: {e}")
