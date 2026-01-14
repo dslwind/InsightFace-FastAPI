@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # InsightFace Configuration
     INSIGHTFACE_MODEL_NAME: str = "buffalo_l"
-    ENABLE_CUDA: bool = False
+    ENABLE_CUDA: bool = True
 
     # API Default Parameters
     DEFAULT_THRESHOLD: float = 0.3

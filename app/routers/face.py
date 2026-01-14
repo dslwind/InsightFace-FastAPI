@@ -14,10 +14,11 @@ router = APIRouter(prefix="/face", tags=["face"])
 async def compare_faces(request: FaceCompareRequest):
     logger.info("Received face comparison request")
     try:
+        from fastapi.concurrency import run_in_threadpool
 
         # Pass request fields as keyword arguments to the service
-        # We can dump the model to dict, but need to be careful with keys matching arguments
-        result = face_service.compare_faces(**request.model_dump())
+        # Run in threadpool to avoid blocking the event loop
+        result = await run_in_threadpool(face_service.compare_faces, **request.model_dump())
 
         logger.info(
             f"Request processed successfully. Time: {result.get('processing_time_ms')}ms"

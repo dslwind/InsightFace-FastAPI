@@ -239,28 +239,47 @@ class FaceService:
         }
 
         try:
-            # 1. Load Image 2 and detect faces (once)
-            faces2 = self.get_faces(
-                image2,
-                min_face_size=min_face_size,
-                detection_threshold=detection_threshold,
-                limit_faces=limit_faces,
-                strategy=best_face_strategy,
-            )
-            response["face_counts"]["image2"] = len(faces2) if faces2 else 0
-            logger.debug(f"Image 2: Found {response['face_counts']['image2']} faces")
+            # 1. Parallel Load of Images (I/O bound optimization)
+            # Use a ThreadPoolExecutor to load both images concurrently
+            import concurrent.futures
 
-            if not faces2:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future_img1 = executor.submit(self._load_image, image1)
+                future_img2 = executor.submit(self._load_image, image2)
+                
+                img1 = future_img1.result()
+                img2 = future_img2.result()
+
+            if img2 is None:
                 response["status"] = "error"
-                response["error_message"] = "No face detected in image2"
-                logger.warning("No face detected in image2")
+                response["error_message"] = "Could not load image2"
+                logger.warning("Could not load image2")
+                # Logic break: if img2 fails we can't proceed
+                
+            elif img1 is None:
+                response["status"] = "error"
+                response["error_message"] = "Could not load image1"
+            
             else:
-                # 2. Load Image 1
-                img1 = self._load_image(image1)
-                if img1 is None:
+                # 2. Detect faces in Image 2
+                # Note: passing pre-loaded numpy array to get_faces
+                faces2 = self.get_faces(
+                    img2,
+                    min_face_size=min_face_size,
+                    detection_threshold=detection_threshold,
+                    limit_faces=limit_faces,
+                    strategy=best_face_strategy,
+                )
+                response["face_counts"]["image2"] = len(faces2) if faces2 else 0
+                logger.debug(f"Image 2: Found {response['face_counts']['image2']} faces")
+
+                if not faces2:
                     response["status"] = "error"
-                    response["error_message"] = "Could not load image1"
+                    response["error_message"] = "No face detected in image2"
+                    logger.warning("No face detected in image2")
                 else:
+                    # 3. Rotation Loop for Image 1 (using pre-loaded img1)
+
                     # 3. Rotation Loop for Image 1
                     # max 4 trials: 0, 90, 180, 270 degrees
                     max_trials = 4 if enable_rotation else 1
