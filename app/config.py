@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # InsightFace Configuration
     INSIGHTFACE_MODEL_NAME: str = "buffalo_l"
+    # Default to current working directory (InsightFace will automatically create "./models" directory)
+    INSIGHTFACE_ROOT: str = "."
     ENABLE_CUDA: bool = True
 
     # API Default Parameters

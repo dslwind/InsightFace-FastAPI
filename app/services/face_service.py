@@ -19,13 +19,32 @@ class FaceService:
     def __init__(self):
         # using model pack from settings
         # providers defaults to CPU or CUDA based on settings
-        providers = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            if settings.ENABLE_CUDA
-            else ["CPUExecutionProvider"]
-        )
+        # Ensure root path is absolute or relative to CWD correctly
+        root_path = os.path.abspath(settings.INSIGHTFACE_ROOT)
+
+        # Prepare providers list based on configuration
+        providers = []
+        
+        if settings.ENABLE_CUDA:
+            # Check for TensorRT options or default preference
+            # Using TensorRT with caching to optimize startup
+            trt_options = {
+                "trt_engine_cache_enable": True,
+                "trt_engine_cache_path": os.path.join(root_path, "trt_engines"),
+                "trt_fp16_enable": True,
+            }
+            # Create cache directory if it doesn't exist
+            os.makedirs(trt_options["trt_engine_cache_path"], exist_ok=True)
+            
+            providers.append(("TensorrtExecutionProvider", trt_options))
+            providers.append("CUDAExecutionProvider")
+
+        providers.append("CPUExecutionProvider")
+        
         self.app = FaceAnalysis(
-            name=settings.INSIGHTFACE_MODEL_NAME, providers=providers
+            name=settings.INSIGHTFACE_MODEL_NAME, 
+            root=root_path,
+            providers=providers
         )
         self.app.prepare(ctx_id=0, det_size=(640, 640))
 
