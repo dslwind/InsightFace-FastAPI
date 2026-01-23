@@ -1,5 +1,5 @@
+from typing import Optional, Dict, Any, Generic, TypeVar
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
 from app.config import settings
 
 
@@ -31,12 +31,22 @@ class CompareParameters(BaseModel):
     input_format: str
     enable_rotation: bool
 
-class FaceCompareResponse(BaseModel):
+class FaceCompareResult(BaseModel):
     is_same_person: bool
     similarity_score: float
-    status: str
-    error_message: Optional[str] = None
+    # status: str  <-- Removing status from data payload
+    # error_message: Optional[str] = None <-- Removing error_message from data payload
     face_counts: FaceCounts
     processing_time_ms: float
     parameters: CompareParameters
+
+T = TypeVar("T")
+
+class StandardResponse(BaseModel, Generic[T]):
+    code: int = Field(..., description="Status code (200 for success)")
+    msg: str = Field(..., description="Message")
+    data: Optional[T] = Field(None, description="Data payload")
+
+class FaceCompareResponse(StandardResponse[FaceCompareResult]):
+    pass
 

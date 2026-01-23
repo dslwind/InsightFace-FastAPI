@@ -27,6 +27,7 @@ Thumbs.db
 # Insightface specific (if any large models actifacts are downloaded, usually they are ignored)
 *.onnx
 models/
+trt_engines/
 
 *.png
 *.jpeg
