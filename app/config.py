@@ -4,20 +4,16 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # InsightFace Configuration
     INSIGHTFACE_MODEL_NAME: str = "buffalo_l"
-    # Default to current working directory (InsightFace will automatically create "./models" directory)
-    INSIGHTFACE_ROOT: str = "."
-    ENABLE_CUDA: bool = True
-    ENABLE_TENSORRT: bool = True
+    INSIGHTFACE_ROOT: str = "models"
+    ENABLE_CUDA: bool = False
+    ENABLE_TENSORRT: bool = False
 
     # API Default Parameters
     DEFAULT_THRESHOLD: float = 0.3
     DEFAULT_DETECTION_THRESHOLD: float = 0.6
     DEFAULT_LIMIT_FACES: int = 0
     DEFAULT_MIN_FACE_SIZE: int = 0
-    DEFAULT_RETURN_FACE_DATA: bool = False
-    DEFAULT_RETURN_LANDMARKS: bool = False
     DEFAULT_BEST_FACE_STRATEGY: str = "center"
-    DEFAULT_INPUT_FORMAT: str = "auto"
     DEFAULT_COMPARE_ALL_FACES: bool = False
     DEFAULT_ENABLE_ROTATION: bool = False
 
@@ -31,14 +27,13 @@ class Settings(BaseSettings):
     LOG_ROTATION_WHEN: str = "midnight"  # Rotates at midnight
     LOG_ROTATION_INTERVAL: int = 1
     LOG_COMPRESS: bool = True
-    
+
     # Database Logging Configuration
     ENABLE_DB_LOGGING: bool = False
     DB_POSTGRES_URL: str = ""  # e.g., postgresql://user:password@localhost:5432/dbname
     DB_SQLITE_URL: str = "sqlite:///logs/app_logs.db"
 
     class Config:
-
         env_file = ".env"
 
 

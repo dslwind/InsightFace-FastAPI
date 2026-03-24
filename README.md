@@ -1,69 +1,65 @@
 # InsightFace FastAPI Service
 
-A high-performance face comparison API built with [FastAPI](https://fastapi.tiangolo.com/) and [InsightFace](https://github.com/deepinsight/insightface). This service allows you to compare faces from URLs or Base64 strings with advanced filtering and detailed metadata.
+A FastAPI service for face comparison built on top of [InsightFace](https://github.com/deepinsight/insightface).
+It accepts image URLs or Base64 strings, detects faces, and returns similarity scores plus request metadata.
 
 ## Features
 
-- **Face Comparison**: Compare two faces and get high-accuracy similarity scores.
-- **Flexible Inputs**: Supports Image URLs and Base64 encoded strings.
-- **Advanced Filtering**: Filter faces by minimum size, detection confidence, and limit the number of faces processed.
-- **Rich Metadata**: Returns processing time, face counts, and input parameters in every response.
-- **Configuration Management**: Fully configurable via environment variables (`.env`).
-- **Robust Logging**: Detailed logging to both console and rotating files.
-- **High Performance**: Optimized with ONNX Runtime and optional CUDA (GPU) support.
+- Face comparison with InsightFace embeddings
+- Image input via URL or Base64
+- Multi-face filtering by size, confidence, and face limit
+- Optional all-vs-all comparison for multi-face images
+- Optional image rotation retries when detection fails
+- Configurable logging and optional database request logging
 
 ## Prerequisites
 
-- **Python**: 3.8+ (Tested with Python 3.12 and NumPy < 2)
-- **CUDA/cuDNN**: Optional, for GPU acceleration (set `ENABLE_CUDA=True` in `.env`).
+- Python 3.8+
+- CUDA/cuDNN is optional
+- For GPU deployments, make sure ONNX Runtime GPU and your NVIDIA stack are compatible
 
 ## Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository_url>
-    cd insightface-FastAPI
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3.  **Configure the environment:**
-    Copy the example environment file and edit it:
-    ```bash
-    cp .env.example .env
-    ```
+```bash
+git clone https://github.com/dslwind/InsightFace-FastAPI.git
+cd InsightFace-FastAPI
+pip install -r requirements.txt
+cp .env.example .env
+```
 
 ## Configuration
 
-The application can be configured via environment variables or a `.env` file. Key settings include:
+The application is configured through environment variables or `.env`.
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `INSIGHTFACE_MODEL_NAME` | The InsightFace model pack to use. | `buffalo_l` |
-| `ENABLE_CUDA` | Enable GPU acceleration (requires CUDA). | `False` |
-| `LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR). | `INFO` |
-| `DEFAULT_THRESHOLD` | Default similarity threshold for a match. | `0.3` |
-
-Refer to `.env.example` for a full list of available settings.
+| `INSIGHTFACE_MODEL_NAME` | InsightFace model pack name | `buffalo_l` |
+| `INSIGHTFACE_ROOT` | Model/cache directory | `models` |
+| `ENABLE_CUDA` | Enable CUDA provider | `False` |
+| `ENABLE_TENSORRT` | Enable TensorRT provider | `False` |
+| `DEFAULT_THRESHOLD` | Similarity threshold for a match | `0.3` |
+| `DEFAULT_DETECTION_THRESHOLD` | Minimum face detection confidence | `0.6` |
+| `DEFAULT_LIMIT_FACES` | Max faces per image, `0` means unlimited | `0` |
+| `DEFAULT_MIN_FACE_SIZE` | Minimum face box size in pixels | `0` |
+| `DEFAULT_BEST_FACE_STRATEGY` | `area`, `center`, `confidence`, or `score` | `center` |
+| `DEFAULT_COMPARE_ALL_FACES` | Compare all detected faces | `False` |
+| `DEFAULT_ENABLE_ROTATION` | Retry image1 using 90° rotations | `False` |
+| `ENABLE_DB_LOGGING` | Persist request/response logs to DB | `False` |
 
 ## Running the Application
-
-Start the server using `uvicorn`:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+The model is initialized during application startup and warmed up once to reduce first-request latency.
+
 ## API Usage
 
 ### `POST /face/compare`
 
-Compare two faces. This endpoint accepts a JSON body.
+**Request body (`application/json`)**
 
-**Request Body (`application/json`):**
 ```json
 {
   "image1": "https://example.com/face1.jpg",
@@ -71,29 +67,61 @@ Compare two faces. This endpoint accepts a JSON body.
   "threshold": 0.3,
   "limit_faces": 0,
   "min_face_size": 0,
+  "detection_threshold": 0.6,
   "best_face_strategy": "center",
-  "compare_all_faces": false
+  "compare_all_faces": false,
+  "enable_rotation": false
 }
 ```
 
-**Response:**
+**Successful response**
+
 ```json
 {
-  "is_same_person": true,
-  "similarity_score": 0.8542,
-  "status": "success",
-  "face_counts": {
-    "image1": 1,
-    "image2": 1
-  },
-  "processing_time_ms": 125.5,
-  "parameters": {
-    "threshold": 0.3,
-    "detection_threshold": 0.6,
-    "limit_faces": 0,
-    "min_face_size": 0,
-    "best_face_strategy": "center",
-    "input_format": "auto"
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "is_same_person": true,
+    "similarity_score": 0.8542,
+    "face_counts": {
+      "image1": 1,
+      "image2": 1
+    },
+    "processing_time_ms": 125.5,
+    "parameters": {
+      "threshold": 0.3,
+      "detection_threshold": 0.6,
+      "limit_faces": 0,
+      "min_face_size": 0,
+      "best_face_strategy": "center",
+      "enable_rotation": false
+    }
+  }
+}
+```
+
+**Error response example**
+
+```json
+{
+  "code": -1,
+  "msg": "No face detected in image2",
+  "data": {
+    "is_same_person": false,
+    "similarity_score": -1.0,
+    "face_counts": {
+      "image1": 0,
+      "image2": 0
+    },
+    "processing_time_ms": 32.7,
+    "parameters": {
+      "threshold": 0.3,
+      "detection_threshold": 0.6,
+      "limit_faces": 0,
+      "min_face_size": 0,
+      "best_face_strategy": "center",
+      "enable_rotation": false
+    }
   }
 }
 ```
@@ -101,39 +129,27 @@ Compare two faces. This endpoint accepts a JSON body.
 ## Logging
 
 Logs are written to:
-1.  **Console**: Real-time output for monitoring.
-2.  **File**: `logs/insightface_api.log` with automatic rotation (10MB size, 5 backups).
 
-The log level can be adjusted via the `LOG_LEVEL` setting in your `.env` file.
+1. Console
+2. `logs/insightface_api.log` with rotation support
 
-## Testing
-
-Comprehensive test scripts are located in the `tests/` directory:
-
-- `test_advanced_api.py`: Tests filtering, limiting, and structure.
-- `test_all_faces.py`: Tests multi-face comparison logic.
-- `test_flexible_inputs.py`: Verifies URL and Base64 handling.
-- `test_strategies.py`: Tests different face selection strategies.
-
-Run a test with:
-```bash
-python tests/test_advanced_api.py
-```
+If `ENABLE_DB_LOGGING=True`, request and response data can also be stored in PostgreSQL or SQLite.
 
 ## Project Structure
 
 ```text
 .
 ├── app/
-│   ├── main.py            # Application entry point & lifespan management
-│   ├── config.py          # Configuration management (Pydantic Settings)
-│   ├── logger.py          # Logging initialization
-│   ├── routers/           # API routes
-│   ├── services/          # Core logic (FaceService)
-│   └── schemas.py         # Request/Response models
-├── tests/                 # Comprehensive test suite
-├── logs/                  # Log files (auto-generated)
-├── requirements.txt       # Project dependencies
-├── .env.example           # Template for configuration
-└── README.md              # Project documentation
+│   ├── main.py
+│   ├── config.py
+│   ├── logger.py
+│   ├── routers/
+│   ├── services/
+│   ├── schemas.py
+│   └── database_logger.py
+├── requirements.txt
+├── .env.example
+├── Dockerfile
+├── docker-compose.yml
+└── README.md
 ```

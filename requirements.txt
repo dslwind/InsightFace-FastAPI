@@ -4,7 +4,6 @@ insightface
 onnxruntime-gpu==1.18.1
 numpy<2
 python-multipart
-opencv-python<4.12
 opencv-python-headless<4.12
 pillow
 requests
