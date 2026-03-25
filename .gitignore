@@ -32,6 +32,3 @@ trt_engines/
 *.png
 *.jpeg
 *.jpg
-
-# Tests
-tests/

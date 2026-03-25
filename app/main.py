@@ -25,8 +25,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Face Comparison API",
-    description="API for comparing faces using InsightFace",
+    title="InsightFace Detection and Comparison API",
+    description="API for detecting and comparing faces using InsightFace",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -109,5 +109,5 @@ app.include_router(face.router)
 @app.get("/")
 def read_root():
     return {
-        "message": "Welcome to Face Comparison API. POST to /face/compare to compare two images."
+        "message": "Welcome to the InsightFace API. Use /face/detect to detect faces and /face/compare to compare two images."
     }

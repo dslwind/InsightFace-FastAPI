@@ -137,6 +137,30 @@ class FaceService:
 
         return img
 
+    def _serialize_face(self, face: Any, index: int) -> Dict[str, Any]:
+        x1, y1, x2, y2 = [float(v) for v in face.bbox]
+        width = float(max(0.0, x2 - x1))
+        height = float(max(0.0, y2 - y1))
+        area = float(width * height)
+        center_x = float((x1 + x2) / 2)
+        center_y = float((y1 + y2) / 2)
+
+        return {
+            "index": index,
+            "confidence": float(getattr(face, "det_score", 0.0)),
+            "bbox": {
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+                "width": width,
+                "height": height,
+                "area": area,
+            },
+            "center": {"x": center_x, "y": center_y},
+            "area": area,
+        }
+
     def get_faces(
         self,
         image_input: Union[bytes, str, np.ndarray],
@@ -208,6 +232,72 @@ class FaceService:
 
         return faces[0].normed_embedding
 
+    def detect_faces(
+        self,
+        image: str,
+        limit_faces: int = settings.DEFAULT_LIMIT_FACES,
+        min_face_size: int = settings.DEFAULT_MIN_FACE_SIZE,
+        detection_threshold: float = settings.DEFAULT_DETECTION_THRESHOLD,
+        best_face_strategy: str = settings.DEFAULT_BEST_FACE_STRATEGY,
+    ) -> Dict[str, Any]:
+        import time
+
+        self.initialize()
+        start_time = time.time()
+
+        response = {
+            "face_count": 0,
+            "image_size": {"width": 0, "height": 0},
+            "faces": [],
+            "processing_time_ms": 0.0,
+            "parameters": {
+                "detection_threshold": detection_threshold,
+                "limit_faces": limit_faces,
+                "min_face_size": min_face_size,
+                "best_face_strategy": best_face_strategy,
+            },
+            "status": "success",
+            "error_message": None,
+        }
+
+        try:
+            img = self._load_image(image)
+            if img is None:
+                response["status"] = "error"
+                response["error_message"] = "Could not load image"
+                logger.warning("Could not load image for face detection")
+            else:
+                height, width = img.shape[:2]
+                response["image_size"] = {"width": int(width), "height": int(height)}
+
+                faces = self.get_faces(
+                    img,
+                    min_face_size=min_face_size,
+                    detection_threshold=detection_threshold,
+                    limit_faces=0,
+                    strategy=best_face_strategy,
+                )
+
+                if faces:
+                    response["face_count"] = len(faces)
+                    if limit_faces > 0:
+                        faces = faces[:limit_faces]
+                    response["faces"] = [
+                        self._serialize_face(face, index)
+                        for index, face in enumerate(faces, start=1)
+                    ]
+                else:
+                    response["face_count"] = 0
+                    response["faces"] = []
+
+        except Exception as e:
+            response["status"] = "error"
+            response["error_message"] = str(e)
+            logger.error("Error detecting faces: %s", e, exc_info=True)
+
+        response["processing_time_ms"] = float((time.time() - start_time) * 1000)
+        return response
+
     def compare_faces(
         self,
         image1: str,
@@ -239,6 +329,7 @@ class FaceService:
                 "limit_faces": limit_faces,
                 "min_face_size": min_face_size,
                 "best_face_strategy": best_face_strategy,
+                "compare_all_faces": compare_all_faces,
                 "enable_rotation": enable_rotation,
             },
         }

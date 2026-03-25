@@ -47,9 +47,61 @@ class FaceCompareRequest(BaseModel):
     )
 
 
+class FaceDetectRequest(BaseModel):
+    image: str = Field(..., description="Image (URL or Base64)")
+    limit_faces: int = Field(
+        settings.DEFAULT_LIMIT_FACES,
+        ge=0,
+        description="Max faces to return (0=unlimited)",
+    )
+    min_face_size: int = Field(
+        settings.DEFAULT_MIN_FACE_SIZE,
+        ge=0,
+        description="Minimum face size in pixels",
+    )
+    detection_threshold: float = Field(
+        settings.DEFAULT_DETECTION_THRESHOLD,
+        ge=0.0,
+        le=1.0,
+        description="Face detection confidence threshold",
+    )
+    best_face_strategy: FaceStrategy = Field(
+        settings.DEFAULT_BEST_FACE_STRATEGY,
+        description="Strategy: 'area', 'center', 'confidence', 'score'",
+    )
+
+
 class FaceCounts(BaseModel):
     image1: int
     image2: int
+
+
+class ImageSize(BaseModel):
+    width: int
+    height: int
+
+
+class FaceCenter(BaseModel):
+    x: float
+    y: float
+
+
+class FaceBoundingBox(BaseModel):
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    width: float
+    height: float
+    area: float
+
+
+class DetectedFace(BaseModel):
+    index: int
+    confidence: float
+    bbox: FaceBoundingBox
+    center: FaceCenter
+    area: float
 
 
 class CompareParameters(BaseModel):
@@ -58,7 +110,15 @@ class CompareParameters(BaseModel):
     limit_faces: int
     min_face_size: int
     best_face_strategy: FaceStrategy
+    compare_all_faces: bool
     enable_rotation: bool
+
+
+class DetectParameters(BaseModel):
+    detection_threshold: float
+    limit_faces: int
+    min_face_size: int
+    best_face_strategy: FaceStrategy
 
 
 class FaceCompareResult(BaseModel):
@@ -67,6 +127,14 @@ class FaceCompareResult(BaseModel):
     face_counts: FaceCounts
     processing_time_ms: float
     parameters: CompareParameters
+
+
+class FaceDetectResult(BaseModel):
+    face_count: int
+    image_size: ImageSize
+    faces: list[DetectedFace]
+    processing_time_ms: float
+    parameters: DetectParameters
 
 
 T = TypeVar("T")
@@ -79,4 +147,8 @@ class StandardResponse(BaseModel, Generic[T]):
 
 
 class FaceCompareResponse(StandardResponse[FaceCompareResult]):
+    pass
+
+
+class FaceDetectResponse(StandardResponse[FaceDetectResult]):
     pass

@@ -5,6 +5,7 @@ It accepts image URLs or Base64 strings, detects faces, and returns similarity s
 
 ## Features
 
+- Face detection with face count, bounding boxes, area, center points, and confidence scores
 - Face comparison with InsightFace embeddings
 - Image input via URL or Base64
 - Multi-face filtering by size, confidence, and face limit
@@ -14,7 +15,7 @@ It accepts image URLs or Base64 strings, detects faces, and returns similarity s
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.9+
 - CUDA/cuDNN is optional
 - For GPU deployments, make sure ONNX Runtime GPU and your NVIDIA stack are compatible
 
@@ -56,6 +57,65 @@ The model is initialized during application startup and warmed up once to reduce
 
 ## API Usage
 
+### `POST /face/detect`
+
+**Request body (`application/json`)**
+
+```json
+{
+  "image": "https://example.com/group-photo.jpg",
+  "limit_faces": 0,
+  "min_face_size": 0,
+  "detection_threshold": 0.6,
+  "best_face_strategy": "center"
+}
+```
+
+**Successful response**
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "face_count": 2,
+    "image_size": {
+      "width": 1280,
+      "height": 720
+    },
+    "faces": [
+      {
+        "index": 1,
+        "confidence": 0.9987,
+        "bbox": {
+          "x1": 120.5,
+          "y1": 80.0,
+          "x2": 260.5,
+          "y2": 250.0,
+          "width": 140.0,
+          "height": 170.0,
+          "area": 23800.0
+        },
+        "center": {
+          "x": 190.5,
+          "y": 165.0
+        },
+        "area": 23800.0
+      }
+    ],
+    "processing_time_ms": 48.3,
+    "parameters": {
+      "detection_threshold": 0.6,
+      "limit_faces": 0,
+      "min_face_size": 0,
+      "best_face_strategy": "center"
+    }
+  }
+}
+```
+
+> `face_count` is the total number of faces found after filtering. The `faces` array may be truncated by `limit_faces`.
+
 ### `POST /face/compare`
 
 **Request body (`application/json`)**
@@ -94,6 +154,7 @@ The model is initialized during application startup and warmed up once to reduce
       "limit_faces": 0,
       "min_face_size": 0,
       "best_face_strategy": "center",
+      "compare_all_faces": false,
       "enable_rotation": false
     }
   }
@@ -120,6 +181,7 @@ The model is initialized during application startup and warmed up once to reduce
       "limit_faces": 0,
       "min_face_size": 0,
       "best_face_strategy": "center",
+      "compare_all_faces": false,
       "enable_rotation": false
     }
   }

@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -33,8 +33,7 @@ class Settings(BaseSettings):
     DB_POSTGRES_URL: str = ""  # e.g., postgresql://user:password@localhost:5432/dbname
     DB_SQLITE_URL: str = "sqlite:///logs/app_logs.db"
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()
